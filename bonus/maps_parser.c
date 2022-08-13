@@ -1,0 +1,129 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   maps_parser.c                                      :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: marza-ga <marza-ga-@student.42barcelo      +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2022/03/04 21:59:00 by marza-ga          #+#    #+#             */
+/*   Updated: 2022/03/04 22:17:00 by marza-ga         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
+#include "../cub3D.h"
+
+int		is_empty_line(char *map_info, int index);
+char	*ft_strjoin_char(char *s1, char c);
+int		advance_empty_line(char *map_info, int index);
+
+void	fill_map_matrix(t_mlx *mlx, char *map_info)
+{
+	int		count2;
+	int		count_y;
+	int		count_x;
+
+	count2 = 0;
+	count_x = 0;
+	count_y = 0;
+	while (map_info[count2])
+	{
+		if (map_info[count2] != '\n')
+			mlx->map[count_x++][count_y] = map_info[count2];
+		else
+		{
+			while (count_x < mlx->map_width)
+				mlx->map[count_x++][count_y] = ' ';
+			count_y++;
+			count_x = 0;
+		}
+		count2++;
+	}
+	free(map_info);
+}
+
+char	*construct_map_info_whit_only_map(char
+	*map_info, int index, t_mlx *mlx)
+{
+	char	*new_map_info;
+
+	new_map_info = NULL;
+	while (is_empty_line(map_info, index))
+		index = advance_empty_line(map_info, index);
+	while (map_info[index])
+	{
+		new_map_info = ft_strjoin_char(new_map_info, map_info[index]);
+		if (!new_map_info)
+		{
+			free(map_info);
+			write(2, "Error: Cannot allocate memory\n", 31);
+			free_map_textures_vars(mlx);
+			mlx_destroy(mlx->mlx_ptr);
+			check_leaks();
+			exit(-1);
+		}
+		index++;
+	}
+	free(map_info);
+	return (new_map_info);
+}
+
+void	check_doors(t_mlx *mlx)
+{
+	int	i;
+	int	j;
+
+	i = -1;
+	while (++i < mlx->map_width)
+	{
+		j = -1;
+		while (++j < mlx->map_height)
+		{
+			if (mlx->map[i][j] == 'D' && !((mlx->map[i][j + 1] == '1'
+			&& mlx->map[i][j - 1] == '1') || (mlx->map[i + 1][j] == '1'
+			&& mlx->map[i - 1][j] == '1')))
+			{
+				write(2, "Error: door has invalid surrounding walls\n", 43);
+				free_map_textures_vars(mlx);
+				free_map_memory(mlx);
+				mlx_destroy(mlx->mlx_ptr);
+				check_leaks();
+				exit(-1);
+			}
+		}
+	}
+}
+
+void	first_map_checks(char *map_info, t_mlx *mlx)
+{
+	check_map_valid_height_and_width(map_info, mlx);
+	check_map_valid_chars(map_info, mlx);
+	check_map_needed_chars(map_info, mlx);
+	create_map_x_malloc(mlx, map_info);
+}
+
+char	**parse_initial_map(t_mlx *mlx)
+{
+	char	*map_info;
+	int		index;
+
+	index = 0;
+	map_info = get_initial_map_info(mlx->map_name, mlx);
+	index = parse_map_vars(map_info, mlx);
+	check_have_all_map_vars(map_info, mlx);
+	map_info = construct_map_info_whit_only_map(map_info, index, mlx);
+	mlx->map_height = map_lines_height(map_info);
+	mlx->map_width = map_lines_width(map_info);
+	first_map_checks(map_info, mlx);
+	mlx->map[mlx->map_width] = NULL;
+	index = -1;
+	while (++index <= mlx->map_width)
+	{
+		mlx->map[index] = create_map_y_malloc(mlx, index, map_info);
+		mlx->map[index][mlx->map_height] = '\0';
+	}
+	fill_map_matrix(mlx, map_info);
+	check_map_surronded_by_walls(mlx);
+	check_doors(mlx);
+	init_doors(mlx);
+	return (mlx->map);
+}
